@@ -1,0 +1,13 @@
+# build output
+dist/*.exe
+dist/*.pdb
+dist/*.ico
+
+# local settings live in %APPDATA%\ScreenshotToDoc, never in the repo
+settings.json
+
+# editors / OS
+.vs/
+*.user
+Thumbs.db
+desktop.ini

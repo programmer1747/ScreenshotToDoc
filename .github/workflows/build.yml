@@ -1,0 +1,45 @@
+name: build
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build
+        shell: cmd
+        run: build.cmd
+
+      - name: Verify the exe was produced
+        shell: pwsh
+        run: |
+          $exe = 'dist/ScreenshotToDoc.exe'
+          if (-not (Test-Path $exe)) { throw 'build produced no exe' }
+          $info = Get-Item $exe
+          Write-Host ("built {0} ({1} bytes)" -f $info.Name, $info.Length)
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ScreenshotToDoc
+          path: dist/ScreenshotToDoc.exe
+          if-no-files-found: error
+
+      - name: Attach exe to release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/ScreenshotToDoc.exe
+          generate_release_notes: true
