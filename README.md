@@ -94,8 +94,19 @@ These are global — they work even when the window isn't focused.
 
 | Shortcut | Action |
 | --- | --- |
-| `Ctrl+Alt+R` | Start / stop watching |
+| `Ctrl+Alt+D` | Start / stop watching |
 | `Ctrl+Alt+Q` | Emergency stop |
+
+Other apps often squat on these combos — capture tools, streaming overlays,
+launchers and peripheral suites are common culprits, and `Ctrl+Alt+R` in
+particular is frequently taken.
+
+Rather than failing silently, the app tries `R`, `D`, `G`, `B`, `M` for
+start/stop and `Q`, `W`, `H`, `J`, `N` for the emergency stop, keeps the first
+combo that actually registers, and **shows the live shortcuts along the bottom
+of the window**. Trust what the window says over what this table says — if
+something else already owns `Ctrl+Alt+R`, you will see `Ctrl+Alt+D` there
+instead.
 
 ## What counts as "a screenshot"
 

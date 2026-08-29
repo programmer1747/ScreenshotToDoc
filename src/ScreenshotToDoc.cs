@@ -21,8 +21,8 @@ using System.Windows.Forms;
 [assembly: AssemblyTitle("ScreenshotToDoc")]
 [assembly: AssemblyProduct("ScreenshotToDoc")]
 [assembly: AssemblyDescription("Screenshot on one monitor, auto-paste into a doc on another.")]
-[assembly: AssemblyVersion("1.1.0.0")]
-[assembly: AssemblyFileVersion("1.1.0.0")]
+[assembly: AssemblyVersion("1.1.1.0")]
+[assembly: AssemblyFileVersion("1.1.1.0")]
 
 namespace ScreenshotToDoc
 {
@@ -159,7 +159,16 @@ namespace ScreenshotToDoc
 
         private ComboBox cboScreen;
         private NumericUpDown numX, numY;
-        private Label lblAbs, lblStatus;
+        private Label lblAbs, lblStatus, lblHint;
+
+        // Whichever combos actually registered, for display.
+        private string toggleHotkey, stopHotkey;
+
+        // Other apps routinely squat on these combos - Ctrl+Alt+R in particular
+        // is popular with capture and streaming tools. Try a short list and keep
+        // the first that registers rather than silently ending up with nothing.
+        private static readonly Keys[] ToggleKeys = { Keys.R, Keys.D, Keys.G, Keys.B, Keys.M };
+        private static readonly Keys[] StopKeys = { Keys.Q, Keys.W, Keys.H, Keys.J, Keys.N };
         private CheckBox chkEnter, chkReturn, chkText, chkMinimize;
         private Button btnRun, btnTest, btnPick;
         private NotifyIcon tray;
@@ -268,11 +277,8 @@ namespace ScreenshotToDoc
             lblStatus = AddLabel("Idle. Press RUN, then take a screenshot.", 14, 338, 402, 40);
             lblStatus.Font = new Font("Segoe UI", 9f, FontStyle.Bold);
 
-            Label hint = AddLabel(
-                "Ctrl+Alt+R  start / stop      Ctrl+Alt+Q  emergency stop\r\n" +
-                "Hiding to the tray? Click the ^ arrow by the clock to find it.",
-                14, 386, 402, 56);
-            hint.ForeColor = Color.Gray;
+            lblHint = AddLabel("", 14, 386, 402, 56);
+            lblHint.ForeColor = Color.Gray;
 
             tray = new NotifyIcon();
             tray.Text = "ScreenshotToDoc";
@@ -576,10 +582,43 @@ namespace ScreenshotToDoc
         {
             base.OnHandleCreated(e);
             Native.AddClipboardFormatListener(Handle);
-            Native.RegisterHotKey(Handle, HK_STOP,
-                Native.MOD_CONTROL | Native.MOD_ALT | Native.MOD_NOREPEAT, (uint)Keys.Q);
-            Native.RegisterHotKey(Handle, HK_TOGGLE,
-                Native.MOD_CONTROL | Native.MOD_ALT | Native.MOD_NOREPEAT, (uint)Keys.R);
+            toggleHotkey = RegisterFirstAvailable(HK_TOGGLE, ToggleKeys);
+            stopHotkey = RegisterFirstAvailable(HK_STOP, StopKeys);
+            UpdateHotkeyHint();
+        }
+
+        // Returns the combo that registered, or null if every candidate was
+        // already claimed by another application.
+        private string RegisterFirstAvailable(int id, Keys[] candidates)
+        {
+            for (int i = 0; i < candidates.Length; i++)
+            {
+                if (Native.RegisterHotKey(Handle, id,
+                        Native.MOD_CONTROL | Native.MOD_ALT | Native.MOD_NOREPEAT,
+                        (uint)candidates[i]))
+                {
+                    return "Ctrl+Alt+" + candidates[i];
+                }
+            }
+            return null;
+        }
+
+        private void UpdateHotkeyHint()
+        {
+            if (lblHint == null) return;
+
+            string line;
+            if (toggleHotkey == null && stopHotkey == null)
+                line = "No global hotkey available - other apps hold them all.";
+            else if (toggleHotkey == null)
+                line = stopHotkey + "  emergency stop      (start/stop combo is taken)";
+            else if (stopHotkey == null)
+                line = toggleHotkey + "  start / stop      (stop combo is taken)";
+            else
+                line = toggleHotkey + "  start / stop      " + stopHotkey + "  emergency stop";
+
+            lblHint.Text = line + "\r\n"
+                + "Hiding to the tray? Click the ^ arrow by the clock to find it.";
         }
 
         protected override void WndProc(ref Message m)
