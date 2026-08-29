@@ -29,8 +29,8 @@ yourself from source (see below).
 4. Screenshot anything, anywhere. Repeat as much as you like.
 5. Press **STOP**, or hit `Ctrl+Alt+Q`.
 
-**Test once** runs the whole sequence immediately using whatever image is already
-on your clipboard, so you can confirm the target is right before arming it.
+**Test once** runs the whole sequence immediately using whatever is already on
+your clipboard, so you can confirm the target is right before arming it.
 
 ### Choosing a screen
 
@@ -49,15 +49,41 @@ relative place no matter which monitor you point it at. That also means it
 survives a resolution change. If you plug or unplug a monitor while the app is
 open, the list refreshes itself.
 
+### Paste everything you copy, not just screenshots
+
+Tick **Also paste anything I copy with Ctrl+C** and the app stops caring whether
+the clipboard holds an image. Copy a paragraph of text, `Ctrl+C` a URL, grab a
+snippet of code — all of it flows into the doc the same way.
+
+One thing to watch: in this mode, copying *inside the destination document*
+also triggers a paste, because the app can't tell where a copy came from. If
+you're collecting from a browser into a doc you never copy from, it's seamless.
+If you copy in both places, leave it off and use screenshots.
+
+Leave it unticked and only images trigger it, which is the safer default.
+
+### Where did the window go?
+
+If **Hide to the system tray while running** is ticked, minimising sends the
+window to the tray rather than the taskbar. Windows 11 hides new tray icons
+behind the **^** arrow next to the clock, so click that, then double-click the
+ScreenshotToDoc icon to bring the window back. A notification tells you this the
+first time it happens.
+
+The tray icon stays visible the whole time the macro is armed, so there's always
+a sign it's live. `Ctrl+Alt+R` stops it from anywhere, whether you can find the
+window or not. This option is off by default.
+
 ### Settings
 
 | Setting | What it does |
 | --- | --- |
 | Screen | Which monitor holds the document |
 | Across / Down | Where on that screen to click, as a percentage. Defaults to 50% / 80% — centred, near the bottom |
-| Press Enter after pasting | Adds a newline so successive screenshots stack instead of colliding |
+| Press Enter after pasting | Adds a newline so successive pastes stack instead of colliding |
 | Send the cursor back | Returns the mouse to where it was before the paste |
-| Minimise to the tray | Gets the window out of the way while it's watching |
+| Also paste anything I copy | Fires on any `Ctrl+C`, not just images |
+| Hide to the system tray | Sends the window to the tray instead of the taskbar while running |
 
 Settings are saved to `%APPDATA%\ScreenshotToDoc\settings.json` and reload on
 next launch.
@@ -106,10 +132,10 @@ no string interpolation, no `?.`, no expression-bodied members, no `out var`.
 ## How it works
 
 `AddClipboardFormatListener` subscribes the window to `WM_CLIPBOARDUPDATE`. When
-one arrives and the clipboard holds an image, the app calls `SetCursorPos` to the
-target point, synthesises a left click via `mouse_event`, and sends `Ctrl+V` via
-`keybd_event`. Short sleeps between the steps give the target app time to take
-focus before the keystrokes land.
+one arrives and the clipboard holds something worth pasting, the app calls
+`SetCursorPos` to the target point, synthesises a left click via `mouse_event`,
+and sends `Ctrl+V` via `keybd_event`. Short sleeps between the steps give the
+target app time to take focus before the keystrokes land.
 
 A two-second cooldown after each paste stops a clipboard-rewriting app from
 triggering a loop.

@@ -21,8 +21,8 @@ using System.Windows.Forms;
 [assembly: AssemblyTitle("ScreenshotToDoc")]
 [assembly: AssemblyProduct("ScreenshotToDoc")]
 [assembly: AssemblyDescription("Screenshot on one monitor, auto-paste into a doc on another.")]
-[assembly: AssemblyVersion("1.0.0.0")]
-[assembly: AssemblyFileVersion("1.0.0.0")]
+[assembly: AssemblyVersion("1.1.0.0")]
+[assembly: AssemblyFileVersion("1.1.0.0")]
 
 namespace ScreenshotToDoc
 {
@@ -90,7 +90,13 @@ namespace ScreenshotToDoc
 
         [DataMember] public bool PressEnter = false;
         [DataMember] public bool ReturnCursor = false;
-        [DataMember] public bool MinimizeOnRun = true;
+
+        // Off by default: turning this on makes every Ctrl+C paste, which is
+        // powerful but surprising if you did not ask for it.
+        [DataMember] public bool PasteText = false;
+
+        // Off by default so the window never vanishes on someone unprepared.
+        [DataMember] public bool MinimizeOnRun = false;
 
         private static string ConfigDir
         {
@@ -154,7 +160,7 @@ namespace ScreenshotToDoc
         private ComboBox cboScreen;
         private NumericUpDown numX, numY;
         private Label lblAbs, lblStatus;
-        private CheckBox chkEnter, chkReturn, chkMinimize;
+        private CheckBox chkEnter, chkReturn, chkText, chkMinimize;
         private Button btnRun, btnTest, btnPick;
         private NotifyIcon tray;
         private System.Windows.Forms.Timer pickTimer;
@@ -167,6 +173,7 @@ namespace ScreenshotToDoc
             numY.Value = ClampPct(cfg.PctY);
             chkEnter.Checked = cfg.PressEnter;
             chkReturn.Checked = cfg.ReturnCursor;
+            chkText.Checked = cfg.PasteText;
             chkMinimize.Checked = cfg.MinimizeOnRun;
             UpdateReadout();
 
@@ -195,7 +202,7 @@ namespace ScreenshotToDoc
         private void BuildUi()
         {
             Text = "ScreenshotToDoc";
-            ClientSize = new Size(430, 428);
+            ClientSize = new Size(430, 454);
             FormBorderStyle = FormBorderStyle.FixedSingle;
             MaximizeBox = false;
             StartPosition = FormStartPosition.CenterScreen;
@@ -236,11 +243,12 @@ namespace ScreenshotToDoc
 
             chkEnter = MakeCheck("Press Enter after pasting (start a new line)", 156);
             chkReturn = MakeCheck("Send the cursor back where it was afterwards", 182);
-            chkMinimize = MakeCheck("Minimise to the tray when running", 208);
+            chkText = MakeCheck("Also paste anything I copy with Ctrl+C, not just screenshots", 208);
+            chkMinimize = MakeCheck("Hide to the system tray while running", 234);
 
             btnRun = new Button();
             btnRun.Text = "RUN";
-            btnRun.Location = new Point(14, 244);
+            btnRun.Location = new Point(14, 270);
             btnRun.Size = new Size(250, 54);
             btnRun.Font = new Font("Segoe UI", 13f, FontStyle.Bold);
             btnRun.BackColor = Color.FromArgb(76, 175, 80);
@@ -252,18 +260,18 @@ namespace ScreenshotToDoc
 
             btnTest = new Button();
             btnTest.Text = "Test once";
-            btnTest.Location = new Point(276, 244);
+            btnTest.Location = new Point(276, 270);
             btnTest.Size = new Size(140, 54);
             btnTest.Click += OnTestClick;
             Controls.Add(btnTest);
 
-            lblStatus = AddLabel("Idle. Press RUN, then take a screenshot.", 14, 312, 402, 40);
+            lblStatus = AddLabel("Idle. Press RUN, then take a screenshot.", 14, 338, 402, 40);
             lblStatus.Font = new Font("Segoe UI", 9f, FontStyle.Bold);
 
             Label hint = AddLabel(
                 "Ctrl+Alt+R  start / stop      Ctrl+Alt+Q  emergency stop\r\n" +
-                "Works with Win+Shift+S, PrtScn, or anything that copies an image.",
-                14, 360, 402, 56);
+                "Hiding to the tray? Click the ^ arrow by the clock to find it.",
+                14, 386, 402, 56);
             hint.ForeColor = Color.Gray;
 
             tray = new NotifyIcon();
@@ -406,13 +414,19 @@ namespace ScreenshotToDoc
                 pasteCount, target.X, target.Y));
         }
 
-        private static bool ClipboardHasImage()
+        // What counts as worth pasting. Images always; text as well once the
+        // user opts in, which turns any Ctrl+C into a paste.
+        private static bool ClipboardHasContent(bool includeText)
         {
             // The clipboard can briefly be locked by the app that just wrote to
             // it, so a couple of retries avoids missing a screenshot.
             for (int attempt = 0; attempt < 3; attempt++)
             {
-                try { return Clipboard.ContainsImage(); }
+                try
+                {
+                    if (Clipboard.ContainsImage()) return true;
+                    return includeText && Clipboard.ContainsText();
+                }
                 catch { Thread.Sleep(60); }
             }
             return false;
@@ -430,7 +444,10 @@ namespace ScreenshotToDoc
             numY.Enabled = false;
             btnPick.Enabled = false;
             tray.Text = "ScreenshotToDoc - watching";
-            SetStatus("Watching. Take a screenshot.");
+            tray.Visible = true;   // always a visible sign that it is armed
+            SetStatus(chkText.Checked
+                ? "Watching. Screenshot or copy anything."
+                : "Watching. Take a screenshot.");
             if (chkMinimize.Checked) WindowState = FormWindowState.Minimized;
         }
 
@@ -461,6 +478,7 @@ namespace ScreenshotToDoc
             cfg.PctY = (double)numY.Value;
             cfg.PressEnter = chkEnter.Checked;
             cfg.ReturnCursor = chkReturn.Checked;
+            cfg.PasteText = chkText.Checked;
             cfg.MinimizeOnRun = chkMinimize.Checked;
             cfg.Save();
         }
@@ -513,9 +531,11 @@ namespace ScreenshotToDoc
 
         private void OnTestClick(object sender, EventArgs e)
         {
-            if (!ClipboardHasImage())
+            if (!ClipboardHasContent(chkText.Checked))
             {
-                SetStatus("Nothing to test - copy a screenshot first.");
+                SetStatus(chkText.Checked
+                    ? "Nothing to test - copy something first."
+                    : "Nothing to test - copy a screenshot first.");
                 return;
             }
             SaveConfig();
@@ -526,18 +546,30 @@ namespace ScreenshotToDoc
         {
             Show();
             WindowState = FormWindowState.Normal;
-            tray.Visible = false;
+            // Keep the tray icon while it is still armed, so there is always a
+            // visible sign that the macro is live.
+            tray.Visible = running;
             Activate();
         }
 
         protected override void OnResize(EventArgs e)
         {
             base.OnResize(e);
-            if (WindowState == FormWindowState.Minimized)
-            {
-                Hide();
-                tray.Visible = true;
-            }
+            if (WindowState != FormWindowState.Minimized) return;
+
+            // Windows 11 tucks newly added tray icons behind the chevron, so a
+            // window that just silently vanished is genuinely hard to find.
+            // Say where it went instead of leaving the user hunting.
+            Hide();
+            tray.Visible = true;
+            tray.BalloonTipTitle = "ScreenshotToDoc is still running";
+            tray.BalloonTipText =
+                "It is in the system tray. Click the ^ arrow next to the clock, "
+                + "then double-click the icon to bring this window back. "
+                + "Ctrl+Alt+R stops it from anywhere.";
+            tray.BalloonTipIcon = ToolTipIcon.Info;
+            try { tray.ShowBalloonTip(9000); }
+            catch { }
         }
 
         protected override void OnHandleCreated(EventArgs e)
@@ -554,7 +586,7 @@ namespace ScreenshotToDoc
         {
             if (m.Msg == Native.WM_CLIPBOARDUPDATE)
             {
-                if (running && DateTime.Now >= coolUntil && ClipboardHasImage())
+                if (running && DateTime.Now >= coolUntil && ClipboardHasContent(chkText.Checked))
                     DoPasteSequence();
             }
             else if (m.Msg == Native.WM_HOTKEY)
