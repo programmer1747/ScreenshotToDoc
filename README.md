@@ -1,6 +1,6 @@
 # ScreenshotToDoc
 
-Take a screenshot on one monitor and it lands in your document on another — automatically.
+Take a screenshot on one monitor and it lands in your document on another automatically!
 
 Press **RUN**, then screenshot as you normally would. The app moves the cursor to
 the screen and spot you picked, clicks to focus the document, and pastes. Take ten
