@@ -21,8 +21,8 @@ using System.Windows.Forms;
 [assembly: AssemblyTitle("ScreenshotToDoc")]
 [assembly: AssemblyProduct("ScreenshotToDoc")]
 [assembly: AssemblyDescription("Screenshot on one monitor, auto-paste into a doc on another.")]
-[assembly: AssemblyVersion("1.1.1.0")]
-[assembly: AssemblyFileVersion("1.1.1.0")]
+[assembly: AssemblyVersion("1.2.0.0")]
+[assembly: AssemblyFileVersion("1.2.0.0")]
 
 namespace ScreenshotToDoc
 {
@@ -88,7 +88,13 @@ namespace ScreenshotToDoc
         [DataMember] public double PctX = 50;
         [DataMember] public double PctY = 80;
 
+        // Legacy flag, kept so older settings files still load.
         [DataMember] public bool PressEnter = false;
+
+        // How many times to press Enter after a paste. -1 means "not written
+        // yet", in which case the old boolean decides.
+        [DataMember] public int EnterCount = -1;
+
         [DataMember] public bool ReturnCursor = false;
 
         // Off by default: turning this on makes every Ctrl+C paste, which is
@@ -97,6 +103,12 @@ namespace ScreenshotToDoc
 
         // Off by default so the window never vanishes on someone unprepared.
         [DataMember] public bool MinimizeOnRun = false;
+
+        internal int EffectiveEnterCount()
+        {
+            if (EnterCount >= 0) return EnterCount;
+            return PressEnter ? 1 : 0;
+        }
 
         private static string ConfigDir
         {
@@ -158,7 +170,7 @@ namespace ScreenshotToDoc
         private int pickLeft;
 
         private ComboBox cboScreen;
-        private NumericUpDown numX, numY;
+        private NumericUpDown numX, numY, numEnter;
         private Label lblAbs, lblStatus, lblHint;
 
         // Whichever combos actually registered, for display.
@@ -169,7 +181,7 @@ namespace ScreenshotToDoc
         // the first that registers rather than silently ending up with nothing.
         private static readonly Keys[] ToggleKeys = { Keys.R, Keys.D, Keys.G, Keys.B, Keys.M };
         private static readonly Keys[] StopKeys = { Keys.Q, Keys.W, Keys.H, Keys.J, Keys.N };
-        private CheckBox chkEnter, chkReturn, chkText, chkMinimize;
+        private CheckBox chkReturn, chkText, chkMinimize;
         private Button btnRun, btnTest, btnPick;
         private NotifyIcon tray;
         private System.Windows.Forms.Timer pickTimer;
@@ -180,7 +192,10 @@ namespace ScreenshotToDoc
             PopulateScreens();
             numX.Value = ClampPct(cfg.PctX);
             numY.Value = ClampPct(cfg.PctY);
-            chkEnter.Checked = cfg.PressEnter;
+            int enters = cfg.EffectiveEnterCount();
+            if (enters < 0) enters = 0;
+            if (enters > 20) enters = 20;
+            numEnter.Value = enters;
             chkReturn.Checked = cfg.ReturnCursor;
             chkText.Checked = cfg.PasteText;
             chkMinimize.Checked = cfg.MinimizeOnRun;
@@ -214,6 +229,7 @@ namespace ScreenshotToDoc
             ClientSize = new Size(430, 454);
             FormBorderStyle = FormBorderStyle.FixedSingle;
             MaximizeBox = false;
+            ShowInTaskbar = true;
             StartPosition = FormStartPosition.CenterScreen;
             TopMost = true;
             Font = new Font("Segoe UI", 9f);
@@ -250,10 +266,19 @@ namespace ScreenshotToDoc
             lblAbs = AddLabel("", 14, 126, 402, 18);
             lblAbs.ForeColor = Color.FromArgb(60, 60, 60);
 
-            chkEnter = MakeCheck("Press Enter after pasting (start a new line)", 156);
+            AddLabel("Enter presses after each paste:", 14, 158, 190, 20);
+            numEnter = new NumericUpDown();
+            numEnter.Location = new Point(206, 155);
+            numEnter.Size = new Size(56, 24);
+            numEnter.Minimum = 0;
+            numEnter.Maximum = 20;
+            Controls.Add(numEnter);
+            Label enterHint = AddLabel("0 = none  (images and text)", 270, 158, 150, 20);
+            enterHint.ForeColor = Color.Gray;
+
             chkReturn = MakeCheck("Send the cursor back where it was afterwards", 182);
             chkText = MakeCheck("Also paste anything I copy with Ctrl+C, not just screenshots", 208);
-            chkMinimize = MakeCheck("Hide to the system tray while running", 234);
+            chkMinimize = MakeCheck("Minimise to the system tray instead of the taskbar", 234);
 
             btnRun = new Button();
             btnRun.Text = "RUN";
@@ -411,7 +436,14 @@ namespace ScreenshotToDoc
             Thread.Sleep(250);
             Native.Paste();                            // Ctrl+V
 
-            if (chkEnter.Checked) { Thread.Sleep(200); Native.PressEnter(); }
+            // Same path for images and text, so the Enter presses apply to both.
+            int enters = (int)numEnter.Value;
+            for (int i = 0; i < enters; i++)
+            {
+                Thread.Sleep(i == 0 ? 200 : 60);
+                Native.PressEnter();
+            }
+
             if (chkReturn.Checked) { Thread.Sleep(150); Native.SetCursorPos(old.X, old.Y); }
 
             pasteCount++;
@@ -482,7 +514,8 @@ namespace ScreenshotToDoc
             cfg.ScreenIndex = cboScreen.SelectedIndex;
             cfg.PctX = (double)numX.Value;
             cfg.PctY = (double)numY.Value;
-            cfg.PressEnter = chkEnter.Checked;
+            cfg.EnterCount = (int)numEnter.Value;
+            cfg.PressEnter = cfg.EnterCount > 0;   // keep the legacy flag in step
             cfg.ReturnCursor = chkReturn.Checked;
             cfg.PasteText = chkText.Checked;
             cfg.MinimizeOnRun = chkMinimize.Checked;
@@ -562,6 +595,11 @@ namespace ScreenshotToDoc
         {
             base.OnResize(e);
             if (WindowState != FormWindowState.Minimized) return;
+
+            // Only disappear into the tray when explicitly asked to. Without
+            // this check, every minimise hid the window whether the option was
+            // ticked or not, which reads exactly like the app closing itself.
+            if (chkMinimize == null || !chkMinimize.Checked) return;
 
             // Windows 11 tucks newly added tray icons behind the chevron, so a
             // window that just silently vanished is genuinely hard to find.

@@ -64,8 +64,8 @@ Leave it unticked and only images trigger it, which is the safer default.
 
 ### Where did the window go?
 
-If **Hide to the system tray while running** is ticked, minimising sends the
-window to the tray rather than the taskbar. Windows 11 hides new tray icons
+Minimising keeps the window on the taskbar, like any other app. Only if you
+tick **Minimise to the system tray** does it go to the tray instead. Windows 11 hides new tray icons
 behind the **^** arrow next to the clock, so click that, then double-click the
 ScreenshotToDoc icon to bring the window back. A notification tells you this the
 first time it happens.
@@ -80,10 +80,10 @@ window or not. This option is off by default.
 | --- | --- |
 | Screen | Which monitor holds the document |
 | Across / Down | Where on that screen to click, as a percentage. Defaults to 50% / 80% — centred, near the bottom |
-| Press Enter after pasting | Adds a newline so successive pastes stack instead of colliding |
+| Enter presses after each paste | How many times to press Enter afterwards, 0 for none. Applies to screenshots and copied text alike, so successive pastes stack instead of colliding |
 | Send the cursor back | Returns the mouse to where it was before the paste |
 | Also paste anything I copy | Fires on any `Ctrl+C`, not just images |
-| Hide to the system tray | Sends the window to the tray instead of the taskbar while running |
+| Minimise to the system tray | Off by default: minimising keeps the window on the taskbar. Tick it to send the window to the tray instead |
 
 Settings are saved to `%APPDATA%\ScreenshotToDoc\settings.json` and reload on
 next launch.
